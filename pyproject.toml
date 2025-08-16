@@ -1,14 +1,82 @@
 [project]
-name = "webapi-agents"
-version = "0.1.0"
-description = "Add your description here"
+name = "ia-aprendizagem"
+version = "1.0.0"
+description = "AI Learning Assistant API with conversation sessions and Google ADK integration"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.12"
+authors = [
+    {name = "Cadu Handrade", email = "caduhandrade@example.com"}
+]
+license = {text = "MIT"}
+keywords = ["ai", "learning", "assistant", "fastapi", "google-adk", "conversation"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.12",
+    "Framework :: FastAPI",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
 dependencies = [
     "fastapi>=0.116.1",
     "google-adk>=1.11.0",
     "google-generativeai>=0.8.5",
     "pydantic>=2.11.7",
+    "pydantic-settings>=2.10.1",
     "python-dotenv>=1.1.1",
     "uvicorn>=0.35.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.4.1",
+    "pytest-asyncio>=1.1.0",
+    "httpx>=0.28.1",
+    "pytest-cov>=5.0.0",
+]
+docs = [
+    "mkdocs>=1.5.0",
+    "mkdocs-material>=9.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/caduhandrade/ia-aprendizagem"
+Repository = "https://github.com/caduhandrade/ia-aprendizagem.git"
+Issues = "https://github.com/caduhandrade/ia-aprendizagem/issues"
+
+[project.scripts]
+ia-aprendizagem = "api.main:main"
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+asyncio_mode = "auto"
+addopts = "-v --tb=short --cov=services --cov=api --cov-report=term-missing"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
+
+[tool.coverage.run]
+source = ["services", "api", "config"]
+omit = [
+    "tests/*",
+    "*/__init__.py",
+    "*/test_*.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
 ]
