@@ -158,39 +158,35 @@ class AgentService:
         return "\n".join(context_parts)
     
     async def _process_with_agent(self, context: str) -> str:
-        """Process context with the agent and return response."""
+        """Process context with Gemini model via google.generativeai."""
         try:
-            # Use the agent to process the context
-            # Note: This is a simplified implementation. In a real scenario,
-            # you might need to use the agent's streaming capabilities or
-            # implement proper conversation management
-            
-            # For now, we'll use a mock implementation
-            # In practice, you would call the agent's methods
-            response = f"Processed by {self.agent.name}: {context[:100]}..."
-            
-            # Simulate some processing time
-            await asyncio.sleep(0.1)
-            
-            return response
-            
+            import google.generativeai as genai
+            from config.settings import settings
+            api_key = settings.google_api_key
+            if not api_key:
+                return "Erro: GOOGLE_API_KEY não configurada"
+            genai.configure(api_key=api_key)
+            model = genai.GenerativeModel('gemini-2.0-flash-exp')
+            response = model.generate_content(context, stream=True)
+            full_response = ""
+            for chunk in response:
+                if hasattr(chunk, 'text') and chunk.text:
+                    full_response += chunk.text
+            return full_response
         except Exception as e:
-            logger.error(f"Error processing with agent: {e}")
+            logger.error(f"Error processing with Gemini: {e}")
             raise
     
     async def _process_with_agent_stream(self, context: str) -> AsyncGenerator[str, None]:
-        """Process context with the agent and stream response."""
+        """Process context with Gemini and stream response as SSE."""
         try:
-            # Simulate streaming response by breaking down the response
-            response = f"Esta é uma resposta processada pelo agente {self.agent.name} para o contexto fornecido. O agente especializado em aprendizagem analisou sua pergunta e fornece uma resposta educativa e detalhada."
-            
-            words = response.split()
-            for word in words:
-                yield f"{word} "
-                await asyncio.sleep(0.05)  # Simulate streaming delay
-                
+            response = await self._process_with_agent(context)
+            # Simula streaming SSE por palavra
+            for word in response.split():
+                yield word + " "
+                await asyncio.sleep(0.05)
         except Exception as e:
-            logger.error(f"Error streaming with agent: {e}")
+            logger.error(f"Error streaming with Gemini: {e}")
             raise
     
     async def get_session_history(self, session_id: str) -> List[Dict[str, Any]]:
