@@ -159,6 +159,11 @@ Por favor, analise o currículo e forneça recomendações específicas para aju
                 "type": "error",
                 "error": str(e)
             }
+        finally:
+            # Clean up file data and content from memory
+            if file_data:
+                file_data.clear()
+                logger.info("File data cleared from memory")
     
     def _build_context_from_history(self, history: List[Dict[str, Any]], current_query: str) -> str:
         """Build context string from conversation history."""
@@ -229,7 +234,12 @@ Por favor, analise o currículo e forneça recomendações específicas para aju
         import docx2txt
         import PyPDF2
         
+        file_stream = None
         try:
+            # Validate file data
+            if not file_data.get("content") or not file_data.get("type"):
+                raise ValueError("File data is incomplete")
+            
             # Decode base64 content
             content_b64 = file_data["content"]
             if content_b64.startswith("data:"):
@@ -239,17 +249,28 @@ Por favor, analise o currículo e forneça recomendações específicas para aju
             file_stream = io.BytesIO(file_bytes)
             
             # Extract text based on file type
+            text = ""
             if file_data["type"] == "application/pdf":
                 pdf_reader = PyPDF2.PdfReader(file_stream)
-                text = ""
                 for page in pdf_reader.pages:
                     text += page.extract_text() or ""
-                return text
             elif file_data["type"] == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
-                return docx2txt.process(file_stream)
+                text = docx2txt.process(file_stream)
             else:
                 raise ValueError(f"Unsupported file type: {file_data['type']}")
+            
+            # Validate extracted text
+            if not text.strip():
+                raise ValueError("No text content extracted from file")
+                
+            return text
                 
         except Exception as e:
             logger.error(f"Error extracting file content: {e}")
             raise
+        finally:
+            # Clean up resources
+            if file_stream:
+                file_stream.close()
+            # Clear file data from memory
+            file_data.clear()
