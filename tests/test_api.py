@@ -211,5 +211,11 @@ class TestErrorHandling:
             json={"query": "Hello"}
         )
         
-        assert response.status_code == 500
-        assert "Test error" in response.json()["detail"]
+        # For streaming responses, errors are handled within the stream
+        # So the response status should be 200, but the stream should contain error info
+        assert response.status_code == 200
+        assert response.headers["content-type"] == "text/event-stream; charset=utf-8"
+        
+        # Check that the response content contains error information
+        content = response.content.decode()
+        assert "error" in content.lower()

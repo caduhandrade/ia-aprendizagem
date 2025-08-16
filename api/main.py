@@ -1,6 +1,7 @@
 
 import asyncio
 import logging
+from contextlib import asynccontextmanager
 from typing import Optional, Dict, Any
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
@@ -20,12 +21,47 @@ session_storage = InMemorySessionStorage()
 session_service = SessionService(session_storage)
 agent_service = AgentService(session_service)
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan event handler for startup and shutdown."""
+    # Startup
+    logger.info(f"Starting {settings.app_name} in {settings.environment} mode")
+    
+    # Schedule periodic cleanup of expired sessions
+    async def cleanup_sessions():
+        while True:
+            try:
+                cleaned = await session_service.cleanup_expired_sessions(settings.session_timeout_hours)
+                if cleaned > 0:
+                    logger.info(f"Cleaned up {cleaned} expired sessions")
+            except Exception as e:
+                logger.error(f"Error during session cleanup: {e}")
+            
+            # Wait 1 hour before next cleanup
+            await asyncio.sleep(3600)
+    
+    # Start cleanup task in background
+    cleanup_task = asyncio.create_task(cleanup_sessions())
+    
+    yield
+    
+    # Shutdown
+    logger.info(f"Shutting down {settings.app_name}")
+    cleanup_task.cancel()
+    try:
+        await cleanup_task
+    except asyncio.CancelledError:
+        pass
+
+
 # FastAPI app
 app = FastAPI(
     title=settings.app_name,
     description="AI Learning Assistant API with conversation sessions",
     version="1.0.0",
-    debug=settings.debug
+    debug=settings.debug,
+    lifespan=lifespan
 )
 
 # CORS middleware
@@ -138,35 +174,6 @@ async def delete_session(session_id: str):
     except Exception as e:
         logger.error(f"Error deleting session: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
-
-# Cleanup background task
-@app.on_event("startup")
-async def startup_event():
-    """Startup event handler."""
-    logger.info(f"Starting {settings.app_name} in {settings.environment} mode")
-    
-    # Schedule periodic cleanup of expired sessions
-    async def cleanup_sessions():
-        while True:
-            try:
-                cleaned = await session_service.cleanup_expired_sessions(settings.session_timeout_hours)
-                if cleaned > 0:
-                    logger.info(f"Cleaned up {cleaned} expired sessions")
-            except Exception as e:
-                logger.error(f"Error during session cleanup: {e}")
-            
-            # Wait 1 hour before next cleanup
-            await asyncio.sleep(3600)
-    
-    # Start cleanup task in background
-    asyncio.create_task(cleanup_sessions())
-
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Shutdown event handler."""
-    logger.info(f"Shutting down {settings.app_name}")
 
 
 if __name__ == "__main__":
