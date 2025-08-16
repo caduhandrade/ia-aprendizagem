@@ -4,6 +4,7 @@ import logging
 from contextlib import asynccontextmanager
 from typing import Optional, Dict, Any
 from fastapi import FastAPI, HTTPException, Depends
+from api.upload import router as upload_router
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
@@ -64,6 +65,7 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
@@ -72,6 +74,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Register upload router
+app.include_router(upload_router)
 
 
 class QueryRequest(BaseModel):

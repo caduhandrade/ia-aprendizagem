@@ -7,6 +7,11 @@ pydantic-settings>=2.10.1
 python-dotenv>=1.1.1
 uvicorn>=0.35.0
 
+# Para upload e extração de PDF/DOCX
+python-docx>=1.1.0
+docx2txt>=0.8
+PyPDF2>=3.0.1
+
 # Development dependencies
 pytest>=8.4.1
 pytest-asyncio>=1.1.0
