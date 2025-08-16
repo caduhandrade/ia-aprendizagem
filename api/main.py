@@ -4,7 +4,6 @@ import logging
 from contextlib import asynccontextmanager
 from typing import Optional, Dict, Any
 from fastapi import FastAPI, HTTPException, Depends
-from api.upload import router as upload_router
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
@@ -75,8 +74,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Register upload router
-app.include_router(upload_router)
+
+class FileData(BaseModel):
+    """File data for resume processing."""
+    content: str = Field(..., description="Base64 encoded file content")
+    filename: str = Field(..., description="Original filename")
+    type: str = Field(..., description="MIME type")
 
 
 class QueryRequest(BaseModel):
@@ -84,6 +87,7 @@ class QueryRequest(BaseModel):
     query: str = Field(..., min_length=1, max_length=2000, description="User query")
     session_id: Optional[str] = Field(None, description="Optional session ID for conversation continuity")
     metadata: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Optional metadata")
+    file: Optional[FileData] = Field(None, description="Optional file data for resume analysis")
 
 
 class SessionResponse(BaseModel):

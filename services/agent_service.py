@@ -81,24 +81,49 @@ class AgentService:
         self, 
         query: str, 
         session_id: Optional[str] = None,
-        metadata: Dict[str, Any] = None
+        metadata: Dict[str, Any] = None,
+        file_data: Optional[Dict[str, str]] = None
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """Process a query with streaming response."""
         try:
             # Get or create session
             session = await self.session_service.get_or_create_session(session_id)
             
+            # Process file if provided
+            enhanced_query = query
+            if file_data:
+                try:
+                    file_content = await self._extract_file_content(file_data)
+                    enhanced_query = f"""
+Analise o currículo fornecido e com base na pergunta do usuário, forneça recomendações personalizadas de estudo e carreira.
+
+CURRÍCULO:
+{file_content}
+
+PERGUNTA DO USUÁRIO:
+{query}
+
+Por favor, analise o currículo e forneça recomendações específicas para ajudar a pessoa a atingir seus objetivos, incluindo:
+1. Habilidades que devem ser desenvolvidas
+2. Cursos ou certificações recomendados
+3. Áreas de melhoria identificadas no currículo
+4. Estratégias de carreira baseadas no perfil atual
+"""
+                except Exception as e:
+                    logger.error(f"Error processing file: {e}")
+                    enhanced_query = f"{query}\n\n(Nota: Houve um erro ao processar o arquivo anexado)"
+            
             # Add user message to session
             await self.session_service.add_message(
                 session.session_id, 
                 "user", 
-                query, 
+                enhanced_query, 
                 metadata or {}
             )
             
             # Prepare conversation context for the agent
             conversation_history = session.get_conversation_history()
-            context = self._build_context_from_history(conversation_history, query)
+            context = self._build_context_from_history(conversation_history, enhanced_query)
             
             # Stream response from agent
             full_response = ""
@@ -196,3 +221,35 @@ class AgentService:
     async def delete_session(self, session_id: str) -> bool:
         """Delete a conversation session."""
         return await self.session_service.delete_session(session_id)
+
+    async def _extract_file_content(self, file_data: Dict[str, str]) -> str:
+        """Extract text content from uploaded file."""
+        import base64
+        import io
+        import docx2txt
+        import PyPDF2
+        
+        try:
+            # Decode base64 content
+            content_b64 = file_data["content"]
+            if content_b64.startswith("data:"):
+                content_b64 = content_b64.split(",")[1]
+            
+            file_bytes = base64.b64decode(content_b64)
+            file_stream = io.BytesIO(file_bytes)
+            
+            # Extract text based on file type
+            if file_data["type"] == "application/pdf":
+                pdf_reader = PyPDF2.PdfReader(file_stream)
+                text = ""
+                for page in pdf_reader.pages:
+                    text += page.extract_text() or ""
+                return text
+            elif file_data["type"] == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+                return docx2txt.process(file_stream)
+            else:
+                raise ValueError(f"Unsupported file type: {file_data['type']}")
+                
+        except Exception as e:
+            logger.error(f"Error extracting file content: {e}")
+            raise

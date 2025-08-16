@@ -14,10 +14,20 @@ async def stream_agent_response(
 ) -> AsyncGenerator[str, None]:
     """Stream response from the agent service."""
     try:
+        # Prepare file data if present
+        file_data = None
+        if hasattr(request, 'file') and request.file:
+            file_data = {
+                "content": request.file.content,
+                "filename": request.file.filename,
+                "type": request.file.type
+            }
+        
         async for chunk_data in agent_service.process_query_stream(
             request.query,
             request.session_id,
-            request.metadata
+            request.metadata,
+            file_data
         ):
             if chunk_data.get("type") == "chunk":
                 # Send content chunk
