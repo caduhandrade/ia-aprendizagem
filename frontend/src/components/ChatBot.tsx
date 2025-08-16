@@ -69,6 +69,8 @@ export default function ChatBot() {
     if (!session) {
       session = createNewSession();
     }
+    // Guarda o id original da sessão para referência
+    const originalSessionId = session.id;
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -80,7 +82,7 @@ export default function ChatBot() {
     // Add user message
     setSessions((prev) =>
       prev.map((s) =>
-        s.id === session!.id
+        s.id === originalSessionId
           ? { ...s, messages: [...s.messages, userMessage] }
           : s
       )
@@ -92,12 +94,20 @@ export default function ChatBot() {
     setStreamingMessage("");
 
     try {
+      // Prepara o payload base
+      const bodyPayload: any = { query };
+
+      // Se a sessão já tem mensagens (não é a primeira pergunta), envia o session_id
+      if (session && session.messages.length >= 2) {
+        bodyPayload.session_id = originalSessionId;
+      }
+
       const response = await fetch(`${API_URL}/ask`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ query }),
+        body: JSON.stringify(bodyPayload),
       });
 
       if (!response.body) {
@@ -107,6 +117,7 @@ export default function ChatBot() {
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let accumulatedMessage = "";
+      let capturedSessionId: string | null = null; // Armazena o session_id capturado
 
       while (true) {
         const { done, value } = await reader.read();
@@ -120,22 +131,37 @@ export default function ChatBot() {
             const data = line.slice(6);
             try {
               const parsed = JSON.parse(data);
+
+              // Captura session_id no primeiro chunk que contém, mas não atualiza estado ainda
+              if (parsed.session_id && !capturedSessionId) {
+                capturedSessionId = parsed.session_id;
+              }
+
               if (parsed.data) {
                 accumulatedMessage += parsed.data;
                 setStreamingMessage(accumulatedMessage);
               } else if (parsed.turn_complete) {
-                // Finish streaming
-                const botMessage: Message = {
-                  id: (Date.now() + 1).toString(),
-                  content: accumulatedMessage.trim(),
-                  sender: "bot",
-                  timestamp: new Date(),
-                };
-
+                // Agora sim atualiza o estado com o session_id capturado
+                let finalSessionId = capturedSessionId || originalSessionId;
+                if (finalSessionId !== originalSessionId) {
+                  setCurrentSessionId(finalSessionId);
+                }
                 setSessions((prev) =>
                   prev.map((s) =>
-                    s.id === session!.id
-                      ? { ...s, messages: [...s.messages, botMessage] }
+                    s.id === originalSessionId
+                      ? {
+                          ...s,
+                          id: finalSessionId,
+                          messages: [
+                            ...s.messages,
+                            {
+                              id: (Date.now() + 1).toString(),
+                              content: accumulatedMessage.trim(),
+                              sender: "bot",
+                              timestamp: new Date(),
+                            },
+                          ],
+                        }
                       : s
                   )
                 );
@@ -145,13 +171,12 @@ export default function ChatBot() {
                 return;
               }
             } catch (e) {
-              console.error("Error parsing SSE data:", e);
+              // Silently ignore JSON parse errors
             }
           }
         }
       }
     } catch (error) {
-      console.error("Error sending message:", error);
       setIsLoading(false);
       setStreamingMessage("");
 
