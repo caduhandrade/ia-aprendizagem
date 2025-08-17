@@ -8,8 +8,7 @@ WORKDIR /app
 COPY . /app
 
 # Instala dependências
-RUN pip install --upgrade pip \
-    && pip install fastapi uvicorn python-dotenv pydantic google-generativeai google-adk
+RUN pip install --upgrade pip && pip install -r requirements.txt
 
 # Expõe portas altas e pouco comuns para FastAPI e ADK Web
 EXPOSE 49152
